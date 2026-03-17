@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini Payment Transfer Dashboard</title>
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <p class="eyebrow">Mini Payment Transfer App</p>
+            <h1>Frontend Dashboard</h1>
+            <p class="hero-copy">
+                Create accounts, check balances, transfer money, and review transactions from one screen.
+            </p>
+        </header>
+
+        <main class="dashboard-grid">
+            <section class="panel">
+                <h2>Create Account</h2>
+                <form id="create-account-form" class="stack">
+                    <label>
+                        Account Number
+                        <input type="text" name="accountNumber" placeholder="ACC1001" required>
+                    </label>
+                    <label>
+                        Account Holder Name
+                        <input type="text" name="accountHolderName" placeholder="John Doe" required>
+                    </label>
+                    <label>
+                        Opening Balance
+                        <input type="number" name="balance" step="0.01" min="0" placeholder="5000.00" required>
+                    </label>
+                    <label>
+                        Email
+                        <input type="email" name="email" placeholder="john@example.com" required>
+                    </label>
+                    <button type="submit">Create Account</button>
+                </form>
+            </section>
+
+            <section class="panel">
+                <h2>Get Account Details</h2>
+                <form id="get-account-form" class="inline-form">
+                    <input type="text" name="accountNumber" placeholder="ACC1001" required>
+                    <button type="submit">Fetch Account</button>
+                </form>
+            </section>
+
+            <section class="panel">
+                <h2>Check Balance</h2>
+                <form id="get-balance-form" class="inline-form">
+                    <input type="text" name="accountNumber" placeholder="ACC1001" required>
+                    <button type="submit">Get Balance</button>
+                </form>
+            </section>
+
+            <section class="panel">
+                <h2>Transfer Money</h2>
+                <form id="transfer-form" class="stack">
+                    <label>
+                        From Account
+                        <input type="text" name="fromAccount" placeholder="ACC1001" required>
+                    </label>
+                    <label>
+                        To Account
+                        <input type="text" name="toAccount" placeholder="ACC1002" required>
+                    </label>
+                    <label>
+                        Amount
+                        <input type="number" name="amount" step="0.01" min="0.01" placeholder="1000.00" required>
+                    </label>
+                    <button type="submit">Transfer</button>
+                </form>
+            </section>
+
+            <section class="panel">
+                <h2>Transaction History</h2>
+                <form id="get-transactions-form" class="inline-form">
+                    <input type="text" name="accountNumber" placeholder="ACC1001" required>
+                    <button type="submit">Load History</button>
+                </form>
+            </section>
+
+            <section class="panel result-panel">
+                <div class="result-header">
+                    <h2>API Response</h2>
+                    <button id="clear-output-button" type="button" class="secondary-button">Clear</button>
+                </div>
+                <pre id="output" class="output">Use one of the forms above to test the backend.</pre>
+            </section>
+        </main>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
