@@ -1,0 +1,23 @@
+# Java
+target/
+.gradle/
+.gradle-cache/
+
+# Maven
+log/
+*.log
+.mvn/
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+
+# macOS
+.DS_Store
+
+# Build output
+out/
+
+# Temporary files
+*.tmp
