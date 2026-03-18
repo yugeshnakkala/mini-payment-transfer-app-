@@ -7,88 +7,217 @@
     <link rel="stylesheet" href="/app.css">
 </head>
 <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
     <div class="page-shell">
-        <header class="hero">
-            <p class="eyebrow">Mini Payment Transfer App</p>
-            <h1>Frontend Dashboard</h1>
-            <p class="hero-copy">
-                Create accounts, check balances, transfer money, and review transactions from one screen.
-            </p>
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">Mini Payment Transfer App</p>
+                <h1 class="brand-title">Account Portal</h1>
+            </div>
+            <div class="topbar-chip">
+                <span class="status-dot"></span>
+                Spring Boot + MySQL
+            </div>
         </header>
 
-        <main class="dashboard-grid">
-            <section class="panel">
-                <h2>Create Account</h2>
-                <form id="create-account-form" class="stack">
-                    <label>
-                        Account Number
-                        <input type="text" name="accountNumber" placeholder="ACC1001" required>
-                    </label>
-                    <label>
-                        Account Holder Name
-                        <input type="text" name="accountHolderName" placeholder="John Doe" required>
-                    </label>
-                    <label>
-                        Opening Balance
-                        <input type="number" name="balance" step="0.01" min="0" placeholder="5000.00" required>
-                    </label>
-                    <label>
-                        Email
-                        <input type="email" name="email" placeholder="john@example.com" required>
-                    </label>
-                    <button type="submit">Create Account</button>
-                </form>
-            </section>
+        <main>
+            <section id="auth-view" class="auth-layout">
+                <div class="auth-hero card">
+                    <p class="section-kicker">Welcome</p>
+                    <h2>Start with login or create a new account.</h2>
+                    <p class="section-copy">
+                        This frontend uses your existing backend APIs. Login is a simple demo flow that checks
+                        account number and email, then opens a dashboard for that account.
+                    </p>
 
-            <section class="panel">
-                <h2>Get Account Details</h2>
-                <form id="get-account-form" class="inline-form">
-                    <input type="text" name="accountNumber" placeholder="ACC1001" required>
-                    <button type="submit">Fetch Account</button>
-                </form>
-            </section>
-
-            <section class="panel">
-                <h2>Check Balance</h2>
-                <form id="get-balance-form" class="inline-form">
-                    <input type="text" name="accountNumber" placeholder="ACC1001" required>
-                    <button type="submit">Get Balance</button>
-                </form>
-            </section>
-
-            <section class="panel">
-                <h2>Transfer Money</h2>
-                <form id="transfer-form" class="stack">
-                    <label>
-                        From Account
-                        <input type="text" name="fromAccount" placeholder="ACC1001" required>
-                    </label>
-                    <label>
-                        To Account
-                        <input type="text" name="toAccount" placeholder="ACC1002" required>
-                    </label>
-                    <label>
-                        Amount
-                        <input type="number" name="amount" step="0.01" min="0.01" placeholder="1000.00" required>
-                    </label>
-                    <button type="submit">Transfer</button>
-                </form>
-            </section>
-
-            <section class="panel">
-                <h2>Transaction History</h2>
-                <form id="get-transactions-form" class="inline-form">
-                    <input type="text" name="accountNumber" placeholder="ACC1001" required>
-                    <button type="submit">Load History</button>
-                </form>
-            </section>
-
-            <section class="panel result-panel">
-                <div class="result-header">
-                    <h2>API Response</h2>
-                    <button id="clear-output-button" type="button" class="secondary-button">Clear</button>
+                    <div class="hero-points">
+                        <div class="hero-point">
+                            <span class="hero-icon">01</span>
+                            <div>
+                                <strong>Create an account</strong>
+                                <p>Register a new customer profile with starting balance and email.</p>
+                            </div>
+                        </div>
+                        <div class="hero-point">
+                            <span class="hero-icon">02</span>
+                            <div>
+                                <strong>Login quickly</strong>
+                                <p>Use account number and email to enter the dashboard experience.</p>
+                            </div>
+                        </div>
+                        <div class="hero-point">
+                            <span class="hero-icon">03</span>
+                            <div>
+                                <strong>Manage one account</strong>
+                                <p>Review details, check balance, transfer funds, and inspect history.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <pre id="output" class="output">Use one of the forms above to test the backend.</pre>
+
+                <div class="auth-card card">
+                    <div class="auth-switcher">
+                        <button type="button" class="switch-button active" data-auth-tab="login">Login</button>
+                        <button type="button" class="switch-button" data-auth-tab="create">Create Account</button>
+                    </div>
+
+                    <div class="auth-feedback" id="auth-feedback">Use your account number and email to continue.</div>
+
+                    <section class="auth-panel active" data-auth-panel="login">
+                        <div class="panel-heading">
+                            <h3>Login to Dashboard</h3>
+                            <p>Enter an existing account number and matching email.</p>
+                        </div>
+
+                        <form id="login-form" class="stack">
+                            <label>
+                                <span>Account Number</span>
+                                <input type="text" name="accountNumber" placeholder="ACC1001" required>
+                            </label>
+                            <label>
+                                <span>Email</span>
+                                <input type="email" name="email" placeholder="john@example.com" required>
+                            </label>
+                            <button type="submit">Login</button>
+                        </form>
+                    </section>
+
+                    <section class="auth-panel" data-auth-panel="create">
+                        <div class="panel-heading">
+                            <h3>Create New Account</h3>
+                            <p>After successful creation, the dashboard will open automatically.</p>
+                        </div>
+
+                        <form id="create-account-form" class="stack">
+                            <label>
+                                <span>Account Number</span>
+                                <input type="text" name="accountNumber" placeholder="ACC2001" required>
+                            </label>
+                            <label>
+                                <span>Account Holder Name</span>
+                                <input type="text" name="accountHolderName" placeholder="John Doe" required>
+                            </label>
+                            <label>
+                                <span>Opening Balance</span>
+                                <input type="number" name="balance" step="0.01" min="0" placeholder="5000.00" required>
+                            </label>
+                            <label>
+                                <span>Email</span>
+                                <input type="email" name="email" placeholder="john@example.com" required>
+                            </label>
+                            <button type="submit">Create Account</button>
+                        </form>
+                    </section>
+                </div>
+            </section>
+
+            <section id="dashboard-view" class="dashboard-view hidden">
+                <div class="dashboard-header card">
+                    <div>
+                        <p class="section-kicker">Logged In</p>
+                        <h2 id="welcome-name">Welcome back</h2>
+                        <p class="section-copy" id="welcome-meta">Your account summary is ready.</p>
+                    </div>
+
+                    <div class="dashboard-actions">
+                        <button type="button" id="refresh-account-button" class="secondary-button">Refresh Account</button>
+                        <button type="button" id="logout-button" class="ghost-button">Logout</button>
+                    </div>
+                </div>
+
+                <div class="summary-grid">
+                    <section class="summary-card card accent-card">
+                        <p class="summary-label">Account Number</p>
+                        <h3 id="summary-account-number">-</h3>
+                    </section>
+                    <section class="summary-card card">
+                        <p class="summary-label">Account Holder</p>
+                        <h3 id="summary-account-holder">-</h3>
+                    </section>
+                    <section class="summary-card card">
+                        <p class="summary-label">Email</p>
+                        <h3 id="summary-email">-</h3>
+                    </section>
+                    <section class="summary-card card accent-card-soft">
+                        <p class="summary-label">Current Balance</p>
+                        <h3 id="summary-balance">-</h3>
+                    </section>
+                </div>
+
+                <div class="workspace-grid">
+                    <section class="workspace-column">
+                        <section class="card action-card">
+                            <div class="panel-heading">
+                                <h3>Transfer Money</h3>
+                                <p>Send funds from the logged-in account to another account.</p>
+                            </div>
+
+                            <form id="transfer-form" class="stack">
+                                <label>
+                                    <span>From Account</span>
+                                    <input type="text" name="fromAccount" id="from-account-input" readonly>
+                                </label>
+                                <label>
+                                    <span>To Account</span>
+                                    <input type="text" name="toAccount" placeholder="ACC2002" required>
+                                </label>
+                                <label>
+                                    <span>Amount</span>
+                                    <input type="number" name="amount" step="0.01" min="0.01" placeholder="1000.00" required>
+                                </label>
+                                <button type="submit">Transfer Funds</button>
+                            </form>
+                        </section>
+
+                        <section class="card action-card">
+                            <div class="panel-heading">
+                                <h3>Quick Actions</h3>
+                                <p>Refresh balance or load the latest transaction history for this account.</p>
+                            </div>
+
+                            <div class="button-row">
+                                <button type="button" id="refresh-balance-button" class="secondary-button">Refresh Balance</button>
+                                <button type="button" id="load-history-button" class="secondary-button">Load History</button>
+                            </div>
+                        </section>
+
+                        <section class="card console-card" id="console-card" data-state="idle">
+                            <div class="console-topline">
+                                <span class="console-label">Live Response</span>
+                                <span class="console-badge" id="output-status">Idle</span>
+                            </div>
+
+                            <div class="panel-heading compact-heading">
+                                <h3>Response Console</h3>
+                                <p>All backend responses appear here.</p>
+                            </div>
+
+                            <button id="clear-output-button" type="button" class="ghost-button compact-button">Clear Console</button>
+                            <pre id="output" class="output">Login to an account to begin.</pre>
+                        </section>
+                    </section>
+
+                    <section class="workspace-column">
+                        <section class="card history-card">
+                            <div class="history-heading">
+                                <div class="panel-heading compact-heading">
+                                    <h3>Transaction History</h3>
+                                    <p>Recent transfers for the logged-in account.</p>
+                                </div>
+                                <span class="history-count" id="history-count">0 items</span>
+                            </div>
+
+                            <div id="transactions-list" class="transactions-list">
+                                <div class="empty-state">
+                                    <strong>No transactions loaded yet.</strong>
+                                    <p>Click “Load History” after login to see recent transfers.</p>
+                                </div>
+                            </div>
+                        </section>
+                    </section>
+                </div>
             </section>
         </main>
     </div>
