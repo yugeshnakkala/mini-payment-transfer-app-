@@ -4,7 +4,10 @@
 
 This project is a Spring Boot + MySQL application for:
 
-- creating bank-style accounts
+- creating accounts
+- logging in with account number and password
+- maintaining a server-side session
+- automatically logging out inactive users
 - checking account details
 - checking balances
 - transferring money between accounts
@@ -13,9 +16,11 @@ This project is a Spring Boot + MySQL application for:
 It also includes a frontend dashboard served directly by Spring Boot from `src/main/resources/static`.
 
 Important note:
-- The current frontend "login" is a demo flow, not real authentication.
-- It checks account number and email against the existing backend data.
-- There is no password, session token, JWT, or Spring Security yet.
+- The app now uses real password-based login.
+- Passwords are stored as BCrypt hashes.
+- Authentication is session-based using `JSESSIONID`.
+- The frontend auto-logs out after 10 minutes of inactivity.
+- The backend session also expires after 10 minutes.
 
 ## 2. Tech Stack
 
@@ -26,45 +31,60 @@ Important note:
 - MySQL
 - Lombok
 - Maven
+- Spring Security Crypto
 - HTML, CSS, JavaScript for the frontend
 
 ## 3. High-Level Flow
 
 ### Backend flow
 
-1. The browser or API client sends a request to a controller.
-2. The controller passes the request to a service.
-3. The service performs validation and business logic.
-4. The service reads/writes data through a repository.
-5. The repository talks to MySQL using JPA/Hibernate.
-6. The response is returned as JSON.
-7. If an error happens, `GlobalExceptionHandler` formats the error response.
+1. The browser sends a request to a controller.
+2. The controller validates session access when needed.
+3. The controller passes the request to a service.
+4. The service performs validation and business logic.
+5. The service reads/writes data through a repository.
+6. The repository talks to MySQL using JPA/Hibernate.
+7. The response is returned as JSON.
+8. If an error happens, `GlobalExceptionHandler` formats the error response.
 
 ### Frontend flow
 
 1. The user opens `/`.
-2. `index.html` loads `app.css` and `app.js`.
-3. `app.js` controls the login/create-account screen and the dashboard.
-4. The frontend calls backend endpoints with `fetch()`.
-5. Responses are shown in the response console and dashboard panels.
+2. `index.html` loads `app.css`, `app.js`, and `favicon.svg`.
+3. `app.js` shows the login/create-account screen.
+4. After login, `app.js` opens the dashboard.
+5. Dashboard actions call backend endpoints with `fetch()`.
+6. Inactivity resets a timer.
+7. After 10 minutes without activity, the frontend logs out automatically.
 
 ## 4. API Endpoints
+
+### Auth endpoints
+
+- `POST /api/auth/login`
+  - Logs in with account number and password.
+  - Creates a backend session.
+- `GET /api/auth/me`
+  - Returns the currently logged-in account from the session.
+- `POST /api/auth/logout`
+  - Invalidates the backend session and clears the session cookie.
 
 ### Account endpoints
 
 - `POST /api/accounts`
-  - Creates a new account.
+  - Creates a new account with password.
 - `GET /api/accounts/{accountNumber}`
-  - Returns account details.
+  - Returns account details for the authenticated account only.
 - `GET /api/accounts/{accountNumber}/balance`
-  - Returns only the balance.
+  - Returns balance for the authenticated account only.
 
 ### Transaction endpoints
 
 - `POST /api/transactions/transfer`
   - Transfers money between accounts.
+  - The sender must match the logged-in account.
 - `GET /api/transactions/{accountNumber}`
-  - Returns transaction history for that account.
+  - Returns transaction history for the authenticated account only.
 
 ## 5. File-by-File Documentation
 
@@ -86,17 +106,20 @@ What it contains:
   - MySQL driver
   - Lombok
   - Validation
+  - Spring Security Crypto
   - Spring Boot Test
 - Spring Boot Maven plugin
 
 ### `README.md`
 Purpose:
-- Basic project introduction and basic API usage examples.
+- Main project overview for GitHub readers.
 
 What it covers:
-- Tech stack
-- Main endpoints
-- Simple run instructions
+- feature summary
+- auth flow
+- API summary
+- run steps
+- manual testing flow
 
 ### `src/main/resources/application.properties`
 Purpose:
@@ -117,6 +140,8 @@ What each property does:
   - Formats SQL output for readability.
 - `server.port=8080`
   - Runs the app on port 8080.
+- `server.servlet.session.timeout=10m`
+  - Sets backend session timeout to 10 minutes.
 
 ---
 
@@ -132,7 +157,47 @@ Functions:
 
 ---
 
+## Config Files
+
+### `src/main/java/com/example/paymentapp/config/SecurityConfig.java`
+Purpose:
+- Provides security-related beans for the application.
+
+Functions:
+- `passwordEncoder()`
+  - Returns a `BCryptPasswordEncoder`.
+  - Used to hash passwords during account creation.
+  - Used to verify passwords during login.
+
+---
+
 ## Controllers
+
+### `src/main/java/com/example/paymentapp/controller/AuthController.java`
+Purpose:
+- Exposes auth/session endpoints.
+
+Functions:
+- `AuthController(AccountService accountService)`
+  - Constructor injection for the service.
+- `login(LoginRequest request, HttpSession session)`
+  - Handles `POST /api/auth/login`.
+  - Validates credentials through `AccountService`.
+  - Stores `accountNumber` in the session.
+  - Returns the authenticated account.
+- `getCurrentAccount(HttpServletRequest request)`
+  - Handles `GET /api/auth/me`.
+  - Reads authenticated account number from the session.
+  - Returns the logged-in account.
+- `logout(HttpServletRequest request, HttpServletResponse response)`
+  - Handles `POST /api/auth/logout`.
+  - Invalidates the session if present.
+  - Clears the `JSESSIONID` cookie.
+  - Returns a success message.
+- `getAuthenticatedAccountNumber(HttpServletRequest request)`
+  - Internal helper.
+  - Reads the session without creating a new one.
+  - Throws `UnauthorizedException` if not logged in.
 
 ### `src/main/java/com/example/paymentapp/controller/AccountController.java`
 Purpose:
@@ -146,14 +211,18 @@ Functions:
   - Validates request body.
   - Calls `accountService.createAccount(...)`.
   - Returns the saved `Account`.
-- `getAccount(String accountNumber)`
+- `getAccount(String accountNumber, HttpServletRequest request)`
   - Handles `GET /api/accounts/{accountNumber}`.
-  - Calls `accountService.getAccountByNumber(...)`.
+  - Checks the logged-in user can only access their own account.
   - Returns the account object.
-- `getBalance(String accountNumber)`
+- `getBalance(String accountNumber, HttpServletRequest request)`
   - Handles `GET /api/accounts/{accountNumber}/balance`.
-  - Calls `accountService.getBalance(...)`.
+  - Checks the logged-in user can only access their own account.
   - Returns `BigDecimal` balance only.
+- `validateAccountAccess(String accountNumber, HttpServletRequest request)`
+  - Internal helper.
+  - Reads session without creating a new one.
+  - Throws `UnauthorizedException` for missing or mismatched session.
 
 ### `src/main/java/com/example/paymentapp/controller/TransactionController.java`
 Purpose:
@@ -162,15 +231,17 @@ Purpose:
 Functions:
 - `TransactionController(TransactionService transactionService)`
   - Constructor injection for the service.
-- `transferMoney(TransferRequest request)`
+- `transferMoney(TransferRequest request, HttpServletRequest requestContext)`
   - Handles `POST /api/transactions/transfer`.
-  - Validates request body.
+  - Ensures the logged-in user can only transfer from their own account.
   - Calls `transactionService.transferMoney(...)`.
   - Returns a success message string.
-- `getTransactions(String accountNumber)`
+- `getTransactions(String accountNumber, HttpServletRequest request)`
   - Handles `GET /api/transactions/{accountNumber}`.
-  - Calls `transactionService.getTransactions(...)`.
+  - Ensures the logged-in user can only read their own transaction history.
   - Returns a list of `TransactionRecord`.
+- `validateAccountAccess(String accountNumber, HttpServletRequest request)`
+  - Internal helper for session/account validation.
 
 ---
 
@@ -191,6 +262,23 @@ Fields:
 - `email`
   - Must not be blank.
   - Must be a valid email format.
+- `password`
+  - Must not be blank.
+  - Must be between 6 and 100 characters.
+
+Generated methods:
+- Lombok `@Data` generates getters, setters, `toString`, `equals`, and `hashCode`.
+
+### `src/main/java/com/example/paymentapp/dto/LoginRequest.java`
+Purpose:
+- Defines the JSON structure for login requests.
+
+Fields:
+- `accountNumber`
+  - Must not be blank.
+- `password`
+  - Must not be blank.
+  - Must be between 6 and 100 characters.
 
 Generated methods:
 - Lombok `@Data` generates getters, setters, `toString`, `equals`, and `hashCode`.
@@ -230,6 +318,9 @@ Fields:
   - Monetary balance stored as `BigDecimal`.
 - `email`
   - Email address linked to the account.
+- `passwordHash`
+  - Stored BCrypt password hash.
+  - Marked with `@JsonIgnore` so it is not returned to the frontend.
 
 Generated methods:
 - Lombok `@Getter`
@@ -296,15 +387,16 @@ Custom methods:
 
 ### `src/main/java/com/example/paymentapp/service/AccountService.java`
 Purpose:
-- Contains business logic related to accounts.
+- Contains business logic related to accounts and login.
 
 Functions:
-- `AccountService(AccountRepository accountRepository)`
-  - Constructor injection for the repository.
+- `AccountService(AccountRepository accountRepository, PasswordEncoder passwordEncoder)`
+  - Constructor injection for the repository and encoder.
 - `createAccount(AccountRequest request)`
   - Checks whether account number already exists.
   - Throws `BadRequestException` if duplicate.
   - Maps request data to `Account`.
+  - Hashes the password with BCrypt.
   - Saves and returns the new account.
 - `getAccountByNumber(String accountNumber)`
   - Looks up account by account number.
@@ -313,6 +405,14 @@ Functions:
 - `getBalance(String accountNumber)`
   - Reuses `getAccountByNumber(...)`.
   - Returns only the account balance.
+- `login(LoginRequest request)`
+  - Looks up the account by number.
+  - Rejects accounts that do not yet have a password hash.
+  - Verifies the password using BCrypt.
+  - Throws `BadRequestException` for invalid credentials.
+  - Returns the authenticated account.
+- `findAccountEntityByNumber(String accountNumber)`
+  - Internal helper for account lookup.
 
 ### `src/main/java/com/example/paymentapp/service/TransactionService.java`
 Purpose:
@@ -356,6 +456,14 @@ Functions:
 - `ResourceNotFoundException(String message)`
   - Stores an error message for not found scenarios.
 
+### `src/main/java/com/example/paymentapp/exception/UnauthorizedException.java`
+Purpose:
+- Custom runtime exception for unauthenticated or unauthorized access.
+
+Functions:
+- `UnauthorizedException(String message)`
+  - Stores an error message for authorization failures.
+
 ### `src/main/java/com/example/paymentapp/exception/GlobalExceptionHandler.java`
 Purpose:
 - Converts thrown exceptions into consistent JSON error responses.
@@ -365,15 +473,16 @@ Functions:
   - Returns HTTP 404 response.
 - `handleBadRequest(BadRequestException ex)`
   - Returns HTTP 400 response.
+- `handleUnauthorized(UnauthorizedException ex)`
+  - Returns HTTP 401 response.
+- `handleNoResourceFound(NoResourceFoundException ex)`
+  - Returns HTTP 404 for missing static resources.
 - `handleValidation(MethodArgumentNotValidException ex)`
   - Returns HTTP 400 response with field-level validation errors.
 - `handleGeneric(Exception ex)`
   - Returns HTTP 500 response.
 - `buildResponse(HttpStatus status, String message)`
-  - Shared helper that creates the JSON error body with:
-    - `timestamp`
-    - `status`
-    - `error`
+  - Shared helper that creates the JSON error body.
 
 ---
 
@@ -388,16 +497,12 @@ Main sections:
   - App title and environment badge.
 - `auth-view`
   - Login/Create Account landing screen.
-- `auth-hero`
-  - Explains the app flow to the user.
-- `auth-card`
-  - Contains tab buttons for switching between login and account creation.
 - `login-form`
-  - Lets the user log in with account number and email.
+  - Lets the user log in with account number and password.
 - `create-account-form`
-  - Lets the user create a new account.
+  - Lets the user create a new account with password.
 - `dashboard-view`
-  - Hidden until login succeeds.
+  - Shown after login.
 - Summary cards
   - Show account number, holder name, email, and balance.
 - `transfer-form`
@@ -419,120 +524,125 @@ What it does:
 - Styles the auth landing page and dashboard layout.
 - Styles cards, forms, buttons, status badges, response console, and transaction list.
 - Handles responsive layout changes for smaller screens.
-- Adds entrance animations with `@keyframes rise-in`.
-
-There are no JavaScript-style functions in this file because it is plain CSS.
+- Adds entrance animations.
 
 ### `src/main/resources/static/app.js`
 Purpose:
 - Controls all frontend behavior and communication with the backend.
 
 Constants and state:
-- `STORAGE_KEY`
-  - Session storage key for saving demo login session.
+- `AUTO_LOGOUT_MS`
+  - Frontend inactivity timeout set to 10 minutes.
+- `ACTIVITY_EVENTS`
+  - Browser events that reset the inactivity timer.
 - DOM references
-  - Cache frequently used HTML elements.
+  - Cached references to page elements.
 - `currentSession`
-  - Holds the current logged-in account info in memory.
+  - Stores the active logged-in account number.
+- `inactivityTimer`
+  - Stores the active logout timeout handle.
 
 Functions:
+- `extractErrorMessage(data)`
+  - Converts backend error responses into readable messages.
 - `formatMoney(value)`
-  - Formats numeric values as USD currency text.
+  - Formats numeric values as USD currency.
 - `setAuthFeedback(message, type = "")`
-  - Updates the login/create-account feedback banner.
-  - Optional `type` adds visual styles like success or error.
+  - Updates the auth feedback banner.
 - `setConsoleState(state, label)`
-  - Updates the response console state and badge label.
+  - Updates the response console state and badge.
 - `showOutput(title, data, state = "success", label = "Complete")`
-  - Writes formatted text into the response console.
+  - Writes formatted output into the console panel.
 - `renderTransactions(transactions)`
-  - Renders transaction cards in the history panel.
-  - Shows an empty state when there are no transactions.
+  - Renders transaction items.
 - `renderAccount(account)`
-  - Fills dashboard summary fields with current account data.
+  - Fills dashboard summary data.
+- `resetDashboardState()`
+  - Clears dashboard values back to defaults.
 - `showDashboard()`
   - Hides auth screen and shows dashboard.
 - `showAuth()`
   - Hides dashboard and shows auth screen.
-- `saveSession(session)`
-  - Saves current session to memory and `sessionStorage`.
-- `clearSession()`
-  - Removes current session from memory and `sessionStorage`.
-- `getSavedSession()`
-  - Reads saved session from `sessionStorage`.
+- `setCurrentSession(accountNumber)`
+  - Stores the logged-in account in memory.
+- `stopInactivityTimer()`
+  - Clears any active timeout.
+- `performLogout(message, shouldCallServer = true)`
+  - Logs out from the frontend.
+  - Optionally calls backend logout.
+  - Clears UI state.
+- `resetInactivityTimer()`
+  - Restarts the inactivity timer.
 - `parseResponse(response)`
-  - Parses backend response as JSON or text.
-  - Throws an error if the HTTP response is not successful.
+  - Parses backend response and throws rich errors for failed responses.
 - `apiRequest(title, url, options = {})`
-  - Shared helper for all API calls.
-  - Shows loading state.
-  - Parses response.
-  - Writes success or error output to the console.
+  - Shared helper for all fetch calls.
+  - Updates console state.
+  - Resets inactivity timer after successful activity.
+  - Logs out automatically on `401` when session expires.
 - `loadAccountSummary()`
-  - Fetches full account details for logged-in user.
-  - Updates summary cards.
+  - Fetches current logged-in account through `/api/auth/me`.
 - `loadBalanceOnly()`
-  - Fetches only the current balance.
-  - Updates the balance card.
+  - Fetches account balance.
 - `loadTransactions()`
-  - Fetches transaction history for logged-in user.
-  - Renders the transaction list.
+  - Fetches transaction history.
 - `openDashboard(session)`
-  - Saves session.
-  - Shows dashboard.
-  - Loads account summary and transactions.
+  - Stores session, shows dashboard, and loads dashboard data.
 
 Event-driven functions:
 - Auth tab click handlers
-  - Switch between Login and Create Account panels.
-- Login form submit handler
-  - Fetches account by account number.
-  - Checks whether entered email matches backend email.
-  - Opens dashboard on success.
-- Create account form submit handler
-  - Sends account creation request.
-  - Automatically logs user in on success.
-- Transfer form submit handler
-  - Sends transfer request using logged-in account as sender.
-  - Reloads account summary and transaction history after success.
+  - Switch between login and create-account panels.
+- Login submit handler
+  - Sends credentials to `/api/auth/login`.
+- Create account submit handler
+  - Creates an account and then logs in automatically.
+- Transfer submit handler
+  - Sends transfer request and reloads account data.
 - Refresh account button handler
-  - Reloads full account details.
+  - Reloads current account details.
 - Refresh balance button handler
-  - Reloads only balance.
+  - Reloads only the balance.
 - Load history button handler
   - Reloads transaction history.
 - Logout button handler
-  - Clears session.
-  - Returns to auth screen.
+  - Calls `performLogout(...)`.
 - Clear console button handler
-  - Resets response console message.
+  - Resets response console.
+- Global activity listeners
+  - Reset inactivity timer during active use.
 
 Startup function:
 - `bootstrap()` anonymous async IIFE
-  - Runs automatically when page loads.
-  - Initializes the response console.
-  - Initializes the transaction empty state.
-  - Restores saved session if available.
-  - If restore fails, returns user to auth screen.
+  - Initializes the page.
+  - Clears dashboard state.
+  - Opens the auth screen by default.
+  - Sets the initial login message.
+
+### `src/main/resources/static/favicon.svg`
+Purpose:
+- Provides the browser favicon for the app.
+
+What it does:
+- Gives the project a branded icon.
+- Prevents missing-favicon noise in the browser.
 
 ---
 
 ## 6. Current Limitations
 
-- No real authentication or passwords
-- No Spring Security
-- No user registration/login backend endpoints
+- Uses session-based auth, not JWT
+- No password reset flow
+- Older accounts created before password support may not have valid passwords
 - No automated tests in `src/test`
-- No account deletion or transaction reversal
-- No transfer audit beyond simple transaction record saving
+- No account deletion
+- No transaction reversal or approval flow
 
 ## 7. Suggested Next Improvements
 
-- Add real authentication with password hashing
-- Add Spring Security or JWT authentication
-- Add unit and integration tests
-- Add API documentation with Swagger/OpenAPI
-- Improve transaction timestamps formatting in frontend
-- Add logout timeout and stronger frontend session handling
-- Add better README with frontend screenshots and flow explanation
+- Add password reset or migration flow for old accounts
+- Add auth and transfer automated tests
+- Add Docker Compose
+- Add Swagger/OpenAPI docs
+- Add nicer frontend toast notifications
+- Format transaction dates in a more user-friendly way
 

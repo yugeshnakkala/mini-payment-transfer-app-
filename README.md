@@ -1,23 +1,28 @@
 # Mini Payment Transfer App
 
-A full-stack mini payment transfer project built with Spring Boot, MySQL, and a static frontend served directly by the backend.
+A full-stack payment transfer application built with Spring Boot, MySQL, and a frontend served directly by the backend.
 
-The app lets you:
+The app supports:
 
-- create accounts
-- log in with a demo account flow using account number + email
-- view account details and balance
-- transfer money between accounts
-- check transaction history
+- account creation
+- password-based login
+- session-based authentication
+- automatic logout after inactivity
+- account detail and balance viewing
+- money transfer between accounts
+- transaction history viewing
 
 ## Features
 
-- Spring Boot REST API for account and transaction operations
+- Spring Boot REST API for accounts, auth, and transactions
 - MySQL persistence with Spring Data JPA
-- Frontend account portal served from the same application
-- Demo login and account creation flow
-- Transfer validation for duplicate accounts and insufficient balance
+- Password hashing with BCrypt
+- Session-based auth using `JSESSIONID`
+- Logout button with backend session invalidation
+- 10-minute inactivity logout on frontend and backend
+- Frontend account portal served from the same app
 - Centralized JSON error handling
+- Favicon support and cleaner static resource error behavior
 
 ## Tech Stack
 
@@ -41,6 +46,7 @@ mini-payment-transfer-app/
 ├── src/
 │   └── main/
 │       ├── java/com/example/paymentapp/
+│       │   ├── config/
 │       │   ├── controller/
 │       │   ├── dto/
 │       │   ├── entity/
@@ -53,7 +59,8 @@ mini-payment-transfer-app/
 │           └── static/
 │               ├── index.html
 │               ├── app.css
-│               └── app.js
+│               ├── app.js
+│               └── favicon.svg
 └── pom.xml
 ```
 
@@ -62,25 +69,57 @@ mini-payment-transfer-app/
 When you open the app at `/`, you get:
 
 1. A landing screen with `Login` and `Create Account`
-2. A dashboard after login that shows:
+2. Password-based login using account number + password
+3. A dashboard after login that shows:
    - account number
    - account holder
    - email
    - current balance
-3. Actions for:
+4. Actions for:
    - transfer money
    - refresh account details
    - refresh balance
    - load transaction history
+   - logout
 
-Important:
-- The current login is a demo flow.
-- It checks account number and email only.
-- There is no password-based authentication yet.
+Session behavior:
+
+- Clicking `Logout` clears the backend session
+- The frontend auto-logs out after 10 minutes of inactivity
+- The backend session also expires after 10 minutes
 
 ## Backend API
 
-### Create Account
+### Auth Endpoints
+
+#### Login
+
+`POST /api/auth/login`
+
+Example request:
+
+```json
+{
+  "accountNumber": "ACC1001",
+  "password": "secure123"
+}
+```
+
+#### Get Current Logged-In Account
+
+`GET /api/auth/me`
+
+Returns the currently authenticated account from the session.
+
+#### Logout
+
+`POST /api/auth/logout`
+
+Invalidates the current backend session and clears the session cookie.
+
+### Account Endpoints
+
+#### Create Account
 
 `POST /api/accounts`
 
@@ -91,31 +130,28 @@ Example request:
   "accountNumber": "ACC1001",
   "accountHolderName": "John Doe",
   "balance": 5000.00,
-  "email": "john@example.com"
+  "email": "john@example.com",
+  "password": "secure123"
 }
 ```
 
-### Get Account Details
+#### Get Account Details
 
 `GET /api/accounts/{accountNumber}`
 
-Example:
+Protected:
+- only the logged-in account can access its own details
 
-```text
-GET /api/accounts/ACC1001
-```
-
-### Get Balance
+#### Get Balance
 
 `GET /api/accounts/{accountNumber}/balance`
 
-Example:
+Protected:
+- only the logged-in account can access its own balance
 
-```text
-GET /api/accounts/ACC1001/balance
-```
+### Transaction Endpoints
 
-### Transfer Money
+#### Transfer Money
 
 `POST /api/transactions/transfer`
 
@@ -129,15 +165,15 @@ Example request:
 }
 ```
 
-### Get Transaction History
+Protected:
+- the logged-in account can only transfer from its own account
+
+#### Get Transaction History
 
 `GET /api/transactions/{accountNumber}`
 
-Example:
-
-```text
-GET /api/transactions/ACC1001
-```
+Protected:
+- only the logged-in account can access its own transaction history
 
 ## Running the Application
 
@@ -179,12 +215,14 @@ http://localhost:8080/
 
 You can test the app in this order:
 
-1. Create a new account from the frontend
-2. Create another account
-3. Log in with one account using account number + email
+1. Create a new account with password
+2. Log in with account number and password
+3. Create a second account
 4. Transfer money to the second account
 5. Refresh balance
 6. Load transaction history
+7. Click logout and verify the login screen returns
+8. Wait 10 minutes without activity and verify auto-logout
 
 ## Error Handling
 
@@ -193,16 +231,19 @@ The app returns structured JSON errors for:
 - duplicate account numbers
 - missing accounts
 - invalid request data
+- invalid password/login attempts
 - insufficient balance
 - same sender and receiver account
+- unauthenticated access
+- cross-account access attempts
 
 Example error:
 
 ```json
 {
-  "timestamp": "2026-03-17T19:45:57.94247742",
-  "status": 400,
-  "error": "Account number already exists"
+  "timestamp": "2026-03-18T17:11:27.132508925",
+  "status": 401,
+  "error": "You must log in first"
 }
 ```
 
@@ -217,23 +258,24 @@ It includes:
 - what each file does
 - what each backend method does
 - what each frontend function does
-- API flow and limitations
+- auth/session flow and limitations
 
 ## Current Limitations
 
-- No real authentication or passwords
-- No Spring Security
-- No JWT/session-based backend auth
+- Uses session-based auth, not JWT
+- No role-based access control
+- No password reset flow
+- Old accounts created before password support may not have usable passwords
 - No automated tests yet
 - No account deletion
 - No transaction reversal or approval flow
 
 ## Suggested Next Improvements
 
-- Add password-based authentication
-- Add Spring Security
-- Add automated tests
-- Add Docker Compose for easier startup
+- Add password reset for older accounts
+- Add automated tests for auth and transfer flows
+- Add Docker Compose for one-command startup
 - Add Swagger/OpenAPI docs
-- Add frontend toast notifications and better validation messages
+- Add frontend toast notifications
+- Add transaction date formatting improvements
 
