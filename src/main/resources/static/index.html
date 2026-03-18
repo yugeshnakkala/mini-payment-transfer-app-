@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mini Payment Transfer Dashboard</title>
-    <link rel="stylesheet" href="/app.css">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/app.css?v=20260318-1">
 </head>
 <body>
     <div class="ambient ambient-one"></div>
@@ -28,8 +29,9 @@
                     <p class="section-kicker">Welcome</p>
                     <h2>Start with login or create a new account.</h2>
                     <p class="section-copy">
-                        This frontend uses your existing backend APIs. Login is a simple demo flow that checks
-                        account number and email, then opens a dashboard for that account.
+                        This frontend now uses a real password-based login flow backed by the server.
+                        Sign in with your account number and password, then manage your account from the dashboard.
+                        For safety, inactive sessions are logged out automatically after 10 minutes.
                     </p>
 
                     <div class="hero-points">
@@ -43,8 +45,8 @@
                         <div class="hero-point">
                             <span class="hero-icon">02</span>
                             <div>
-                                <strong>Login quickly</strong>
-                                <p>Use account number and email to enter the dashboard experience.</p>
+                                <strong>Login securely</strong>
+                                <p>Use account number and password to open a server-backed session.</p>
                             </div>
                         </div>
                         <div class="hero-point">
@@ -63,12 +65,12 @@
                         <button type="button" class="switch-button" data-auth-tab="create">Create Account</button>
                     </div>
 
-                    <div class="auth-feedback" id="auth-feedback">Use your account number and email to continue.</div>
+                    <div class="auth-feedback" id="auth-feedback">Use your account number and password to continue.</div>
 
                     <section class="auth-panel active" data-auth-panel="login">
                         <div class="panel-heading">
                             <h3>Login to Dashboard</h3>
-                            <p>Enter an existing account number and matching email.</p>
+                            <p>Enter your existing account number and password. Inactive sessions expire after 10 minutes.</p>
                         </div>
 
                         <form id="login-form" class="stack">
@@ -77,8 +79,8 @@
                                 <input type="text" name="accountNumber" placeholder="ACC1001" required>
                             </label>
                             <label>
-                                <span>Email</span>
-                                <input type="email" name="email" placeholder="john@example.com" required>
+                                <span>Password</span>
+                                <input type="password" name="password" placeholder="Minimum 6 characters" minlength="6" required>
                             </label>
                             <button type="submit">Login</button>
                         </form>
@@ -106,6 +108,10 @@
                             <label>
                                 <span>Email</span>
                                 <input type="email" name="email" placeholder="john@example.com" required>
+                            </label>
+                            <label>
+                                <span>Password</span>
+                                <input type="password" name="password" placeholder="Minimum 6 characters" minlength="6" required>
                             </label>
                             <button type="submit">Create Account</button>
                         </form>
@@ -222,6 +228,6 @@
         </main>
     </div>
 
-    <script src="/app.js"></script>
+    <script src="/app.js?v=20260318-1"></script>
 </body>
 </html>

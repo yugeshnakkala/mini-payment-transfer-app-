@@ -1,5 +1,6 @@
 package com.example.paymentapp.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -28,4 +29,8 @@ public class Account {
 
     @Column(nullable = false)
     private String email;
+
+    @JsonIgnore
+    @Column(name = "password_hash")
+    private String passwordHash;
 }

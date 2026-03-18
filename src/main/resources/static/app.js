@@ -1,5 +1,3 @@
-const STORAGE_KEY = "mini-payment-session";
-
 const authView = document.getElementById("auth-view");
 const dashboardView = document.getElementById("dashboard-view");
 const authFeedback = document.getElementById("auth-feedback");
@@ -17,7 +15,31 @@ const summaryAccountHolder = document.getElementById("summary-account-holder");
 const summaryEmail = document.getElementById("summary-email");
 const summaryBalance = document.getElementById("summary-balance");
 
+const AUTO_LOGOUT_MS = 10 * 60 * 1000;
+const ACTIVITY_EVENTS = ["click", "keydown", "mousemove", "scroll", "touchstart"];
+
 let currentSession = null;
+let inactivityTimer = null;
+
+function extractErrorMessage(data) {
+    if (typeof data === "string") {
+        return data;
+    }
+
+    if (data && typeof data === "object") {
+        if (data.error === "Validation failed" && data.details && typeof data.details === "object") {
+            return Object.entries(data.details)
+                .map(([field, message]) => `${field}: ${message}`)
+                .join("\n");
+        }
+
+        if (typeof data.error === "string" && data.error.trim()) {
+            return data.error;
+        }
+    }
+
+    return "Request failed";
+}
 
 function formatMoney(value) {
     const amount = Number(value ?? 0);
@@ -86,6 +108,18 @@ function renderAccount(account) {
     fromAccountInput.value = account.accountNumber;
 }
 
+function resetDashboardState() {
+    welcomeName.textContent = "Welcome back";
+    welcomeMeta.textContent = "Your account summary is ready.";
+    summaryAccountNumber.textContent = "-";
+    summaryAccountHolder.textContent = "-";
+    summaryEmail.textContent = "-";
+    summaryBalance.textContent = "-";
+    fromAccountInput.value = "";
+    historyCount.textContent = "0 items";
+    renderTransactions([]);
+}
+
 function showDashboard() {
     authView.classList.add("hidden");
     dashboardView.classList.remove("hidden");
@@ -96,20 +130,53 @@ function showAuth() {
     authView.classList.remove("hidden");
 }
 
-function saveSession(session) {
-    currentSession = session;
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+function setCurrentSession(accountNumber) {
+    currentSession = { accountNumber };
 }
 
-function clearSession() {
+function stopInactivityTimer() {
+    if (inactivityTimer) {
+        clearTimeout(inactivityTimer);
+        inactivityTimer = null;
+    }
+}
+
+async function performLogout(message, shouldCallServer = true) {
+    stopInactivityTimer();
+
+    if (shouldCallServer) {
+        try {
+            await fetch("/api/auth/logout", {
+                method: "POST"
+            });
+        } catch (error) {
+            // Ignore network/logout failures and still clear the local UI state.
+        }
+    }
+
     currentSession = null;
-    sessionStorage.removeItem(STORAGE_KEY);
+    resetDashboardState();
+    showAuth();
+    setAuthFeedback(message, message.toLowerCase().includes("expired") ? "error" : "success");
+    showOutput("Response Console", "Login to an account to begin.", "idle", "Idle");
 }
 
-function getSavedSession() {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+function resetInactivityTimer() {
+    if (!currentSession) {
+        return;
+    }
+
+    stopInactivityTimer();
+    inactivityTimer = setTimeout(() => {
+        performLogout("You were logged out automatically after 10 minutes of inactivity.", true);
+    }, AUTO_LOGOUT_MS);
 }
+
+ACTIVITY_EVENTS.forEach((eventName) => {
+    document.addEventListener(eventName, () => {
+        resetInactivityTimer();
+    }, { passive: true });
+});
 
 async function parseResponse(response) {
     const contentType = response.headers.get("content-type") || "";
@@ -118,7 +185,9 @@ async function parseResponse(response) {
         : await response.text();
 
     if (!response.ok) {
-        throw new Error(typeof data === "string" ? data : JSON.stringify(data, null, 2));
+        const error = new Error(extractErrorMessage(data));
+        error.status = response.status;
+        throw error;
     }
 
     return data;
@@ -131,8 +200,14 @@ async function apiRequest(title, url, options = {}) {
         const response = await fetch(url, options);
         const data = await parseResponse(response);
         showOutput(title, data, "success", "Success");
+        resetInactivityTimer();
         return data;
     } catch (error) {
+        if (error.status === 401 && currentSession && url !== "/api/auth/logout") {
+            await performLogout("Your session expired. Please log in again.", false);
+            throw error;
+        }
+
         showOutput(`${title} Failed`, error.message, "error", "Attention");
         throw error;
     }
@@ -145,10 +220,11 @@ async function loadAccountSummary() {
 
     const account = await apiRequest(
         "Account Details",
-        `/api/accounts/${encodeURIComponent(currentSession.accountNumber)}`
+        "/api/auth/me"
     );
 
     renderAccount(account);
+    setCurrentSession(account.accountNumber);
 }
 
 async function loadBalanceOnly() {
@@ -178,8 +254,9 @@ async function loadTransactions() {
 }
 
 async function openDashboard(session) {
-    saveSession(session);
+    setCurrentSession(session.accountNumber);
     showDashboard();
+    resetInactivityTimer();
     await loadAccountSummary();
     await loadTransactions();
 }
@@ -198,30 +275,35 @@ document.querySelectorAll("[data-auth-tab]").forEach((button) => {
 
         setAuthFeedback(
             target === "login"
-                ? "Use your account number and email to continue."
-                : "Create a new account to enter the dashboard."
+                ? "Use your account number and password to continue."
+                : "Create a new account with a secure password to enter the dashboard."
         );
     });
 });
 
 document.getElementById("login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const accountNumber = formData.get("accountNumber").trim();
-    const email = formData.get("email").trim();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const payload = Object.fromEntries(formData.entries());
+    payload.accountNumber = payload.accountNumber.trim();
 
     try {
         const account = await apiRequest(
-            "Login Lookup",
-            `/api/accounts/${encodeURIComponent(accountNumber)}`
+            "Login Successful",
+            "/api/auth/login",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            }
         );
 
-        if (account.email.toLowerCase() !== email.toLowerCase()) {
-            throw new Error("The email does not match this account.");
-        }
-
         setAuthFeedback("Login successful. Opening your dashboard.", "success");
-        await openDashboard({ accountNumber, email });
+        form.reset();
+        await openDashboard({ accountNumber: account.accountNumber });
     } catch (error) {
         setAuthFeedback(error.message, "error");
     }
@@ -229,7 +311,8 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
 
 document.getElementById("create-account-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     const payload = Object.fromEntries(formData.entries());
     payload.balance = Number(payload.balance);
 
@@ -242,12 +325,20 @@ document.getElementById("create-account-form").addEventListener("submit", async 
             body: JSON.stringify(payload)
         });
 
-        setAuthFeedback("Account created successfully. Logging you in now.", "success");
-        event.currentTarget.reset();
-        await openDashboard({
-            accountNumber: account.accountNumber,
-            email: account.email
+        await apiRequest("Login Successful", "/api/auth/login", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                accountNumber: payload.accountNumber,
+                password: payload.password
+            })
         });
+
+        setAuthFeedback("Account created successfully. Logging you in now.", "success");
+        form.reset();
+        await openDashboard({ accountNumber: account.accountNumber });
     } catch (error) {
         setAuthFeedback(error.message, "error");
     }
@@ -260,7 +351,8 @@ document.getElementById("transfer-form").addEventListener("submit", async (event
         return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     const payload = Object.fromEntries(formData.entries());
     payload.amount = Number(payload.amount);
     payload.fromAccount = currentSession.accountNumber;
@@ -274,7 +366,7 @@ document.getElementById("transfer-form").addEventListener("submit", async (event
             body: JSON.stringify(payload)
         });
 
-        event.currentTarget.reset();
+        form.reset();
         fromAccountInput.value = currentSession.accountNumber;
         await loadAccountSummary();
         await loadTransactions();
@@ -308,11 +400,7 @@ document.getElementById("load-history-button").addEventListener("click", async (
 });
 
 document.getElementById("logout-button").addEventListener("click", () => {
-    clearSession();
-    renderTransactions([]);
-    showAuth();
-    setAuthFeedback("You have been logged out.", "success");
-    showOutput("Response Console", "Login to an account to begin.", "idle", "Idle");
+    performLogout("You have been logged out.", true);
 });
 
 document.getElementById("clear-output-button").addEventListener("click", () => {
@@ -320,21 +408,10 @@ document.getElementById("clear-output-button").addEventListener("click", () => {
 });
 
 (async function bootstrap() {
+    resetDashboardState();
     showOutput("Response Console", "Login to an account to begin.", "idle", "Idle");
-    renderTransactions([]);
-
-    const savedSession = getSavedSession();
-    if (!savedSession) {
-        showAuth();
-        return;
-    }
-
-    try {
-        await openDashboard(savedSession);
-        setAuthFeedback("Restored your previous session.", "success");
-    } catch (error) {
-        clearSession();
-        showAuth();
-        setAuthFeedback("Your saved session could not be restored. Please log in again.", "error");
-    }
+    stopInactivityTimer();
+    currentSession = null;
+    showAuth();
+    setAuthFeedback("Use your account number and password to continue.");
 })();
