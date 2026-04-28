@@ -12,7 +12,7 @@ The app supports:
 - money transfer between accounts
 - transaction history viewing
 
-## Features
+## Features..........................
 
 - Spring Boot REST API for accounts, auth, and transactions
 - MySQL persistence with Spring Data JPA
