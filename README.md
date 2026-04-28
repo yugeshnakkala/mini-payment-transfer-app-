@@ -4,7 +4,7 @@ A full-stack payment transfer application built with Spring Boot, MySQL, and a f
 
 The app supports:
 
-- account creation
+- account creation....
 - password-based login
 - session-based authentication
 - automatic logout after inactivity
